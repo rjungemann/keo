@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Kafka recently supports exactly-once semantics, and there is a great Scala
+Kafka [recently supports exactly-once semantics](https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/), and there is a great Scala
 example showing how it works. I ported the example to Clojure and used `thrush`
 to combine pure functions into a pipeline.
 
