@@ -137,6 +137,9 @@
 (defn generate-producer-records [records]
   (mapcat (fn [record]
             ; Generate the record(s) going out.
+            ;
+            ; NOTE: You may need to play with the partition value.
+            ;
             [(ProducerRecord. out-topic
                               (. record partition)
                               (. record timestamp)
@@ -148,6 +151,7 @@
 ;; Main
 ;; ----
 
+; Add your own functions within the `thrush` call below.
 (defn -main []
   (make-pipeline (-> (create-consumer)
                      (init-consumer))
@@ -160,6 +164,6 @@
                           ;
                           ; Of course, you can write a function which returns
                           ; something else, then a subsequent function which
-                          ; takes that value.
+                          ; takes that modified value.
                           ;
                           generate-producer-records)))
