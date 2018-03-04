@@ -47,11 +47,12 @@
 ;; --------
 
 (defn create-producer []
-  (let [props (Properties.)]
-    (. props put "bootstrap.servers" kafka-servers)
-    (. props put ProducerConfig/TRANSACTIONAL_ID_CONFIG kafka-producer-transactional-id)
-    (. props put ProducerConfig/ENABLE_IDEMPOTENCE_CONFIG "true")
-    (KafkaProducer. props (StringSerializer.) (StringSerializer.))))
+  (KafkaProducer. (doto (Properties.)
+                        (.put "bootstrap.servers" kafka-servers)
+                        (.put ProducerConfig/TRANSACTIONAL_ID_CONFIG kafka-producer-transactional-id)
+                        (.put ProducerConfig/ENABLE_IDEMPOTENCE_CONFIG "true"))
+                  (StringSerializer.)
+                  (StringSerializer.)))
 
 (defn init-producer [producer]
   (. producer initTransactions)
@@ -62,14 +63,13 @@
 ;; --------
 
 (defn create-consumer []
-  (let [props (Properties.)]
-    (. props put "bootstrap.servers" kafka-servers)
-    (. props put "group.id" kafka-consumer-group-id)
-    (. props put "enable.auto.commit" "false")
-    (. props put "key.deserializer" "org.apache.kafka.common.serialization.StringDeserializer")
-    (. props put "value.deserializer" "org.apache.kafka.common.serialization.StringDeserializer")
-    (. props put ConsumerConfig/ISOLATION_LEVEL_CONFIG "read_committed")
-    (KafkaConsumer. props)))
+  (KafkaConsumer. (doto (Properties.)
+                        (.put "bootstrap.servers" kafka-servers)
+                        (.put "group.id" kafka-consumer-group-id)
+                        (.put "enable.auto.commit" "false")
+                        (.put "key.deserializer" "org.apache.kafka.common.serialization.StringDeserializer")
+                        (.put "value.deserializer" "org.apache.kafka.common.serialization.StringDeserializer")
+                        (.put ConsumerConfig/ISOLATION_LEVEL_CONFIG "read_committed"))))
 
 (defn init-consumer [consumer]
   (. consumer subscribe in-topics)
