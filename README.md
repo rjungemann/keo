@@ -8,6 +8,8 @@ to combine pure functions into a pipeline.
 
 Messages come in, get processed by the pipeline, and sent back out.
 
+**NOTE:** The producer generating the messages outside this process, and the subscriber consuming the messages coming out, will need to adhere to the same constraints in order to get the same "exactly-once" guarantees.
+
 * [Kafka Exactly-Once Example in Scala](https://github.com/simplesteph/kafka-0.11-examples/blob/master/src/main/scala/au/com/simplesteph/kafka/kafka0_11/demo/ExactlyOnceLowLevel.scala)
 * [Kafka Javadoc](https://kafka.apache.org/0102/javadoc/overview-summary.html)
 * [Kafkacat](https://github.com/edenhill/kafkacat)
