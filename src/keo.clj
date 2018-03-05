@@ -1,5 +1,6 @@
 (ns keo
-  (:require [clojure.stacktrace])
+  (:require [clojure.stacktrace]
+            [perseverance.core])
   (:import java.util.Properties
            org.apache.kafka.clients.consumer.KafkaConsumer
            org.apache.kafka.clients.consumer.ConsumerConfig
@@ -42,6 +43,35 @@
 (defonce poll-size
   (Integer/parseInt (or (get env "POLL_SIZE") "100")))
 
+;; -------
+;; Helpers
+;; -------
+
+(defn find-out-offsets [records]
+  (reduce #(assoc %1
+                  (TopicPartition. (. %2 topic) (. %2 partition))
+                  (OffsetAndMetadata. (. %2 offset)))
+          {}
+          records))
+
+; Composes functions in the order they are written (reverse of `comp`).
+(defn thrush [& args]
+  (reduce #(%2 %1) args))
+
+(defn serialize-record [record]
+  {:checksum  (. record checksum)
+   :key       (. record key)
+   :offset    (. record offset)
+   :partition (. record partition)
+   :topic     (. record topic)
+   :timestamp (. record timestamp)
+   :value     (. record value)})
+
+(defonce retry-strategy
+  (perseverance.core/progressive-retry-strategy :initial-delay 1000
+                                                :max-delay 10000
+                                                :max-count 5))
+
 ;; --------
 ;; Producer
 ;; --------
@@ -57,6 +87,21 @@
 (defn init-producer [producer]
   (. producer initTransactions)
   producer)
+
+(defn send-records-with-producer [producer in-records out-records]
+  (perseverance.core/retry {:strategy retry-strategy
+                            :catch [KafkaException]}
+    (try
+      (. producer beginTransaction)
+      (doseq [record out-records]
+        (. producer send record))
+      (. producer sendOffsetsToTransaction (find-out-offsets in-records) kafka-consumer-group-id)
+      (. producer commitTransaction)
+      (catch KafkaException e
+        ; Catch the KafkaException, abort the transaction, and re-raise.
+        (println "Failed to publish records. Retrying...")
+        (. producer abortTransaction)
+        (throw e)))))
 
 ;; --------
 ;; Consumer
@@ -75,68 +120,34 @@
   (. consumer subscribe in-topics)
   consumer)
 
-;; -------
-;; Helpers
-;; -------
-
-(defn find-out-offsets [records]
-  (reduce (fn [result record]
-            (assoc result
-                   (TopicPartition. (. record topic) (. record partition))
-                   (OffsetAndMetadata. (. record offset))))
-          {}
-          records))
-
-(defn make-pipeline [consumer producer f]
-  (try
-    (loop []
-      (let [records (. consumer poll poll-size)
-            producer-records (f records)]
-        (. producer beginTransaction)
-        (doseq [record producer-records]
-          (. producer send record))
-        (. producer sendOffsetsToTransaction (find-out-offsets records) kafka-consumer-group-id)
-        (. producer commitTransaction))
-      (recur))
-    (catch Exception e
-      (case (type e)
-        ; Stop processing on these exceptions.
-        (ProducerFencedException OutOfOrderSequenceException AuthorizationException)
-        (do
-          (clojure.stacktrace/print-stack-trace e)
-          (. producer close))
-        ; Abort the transaction but continue on this exception.
-        KafkaException
-        (do
-          (clojure.stacktrace/print-stack-trace e)
-          (. producer abortTransaction))
-        ; Otherwise, just re-raise.
-        (throw e)))))
-
-; Composes functions in the order they are written (reverse of `comp`).
-(defn thrush [& args]
-  (reduce #(%2 %1) args))
+(defn fetch-records-with-consumer [consumer poll-size]
+  (. consumer poll poll-size))
 
 ;; ------------------
 ;; Pipeline Functions
 ;; ------------------
 
-(defn print-and-pass [records]
+; Examine the record coming in.
+(defn print-and-pass-records [records]
   (mapcat (fn [record]
-            ; Examine the record coming in.
-            (println {:checksum  (. record checksum)
-                      :key       (. record key)
-                      :offset    (. record offset)
-                      :partition (. record partition)
-                      :topic     (. record topic)
-                      :timestamp (. record timestamp)
-                      :value     (. record value)})
+            (println (serialize-record record))
             [record])
           records))
 
+; Stateful function that counts records coming in.
+(defn count-records [state]
+  (fn [records]
+    (let [current-count (count records)]
+      (if (< 0 current-count)
+        (do
+          (swap! state #(assoc % :count (+ (or (:count %) 0)
+                                           current-count)))
+          (println "Record count:" (:count @state))
+          records)))))
+
+; Generate the record(s) going out.
 (defn generate-producer-records [records]
   (mapcat (fn [record]
-            ; Generate the record(s) going out.
             [(ProducerRecord. out-topic
                               (. record partition)
                               (. record timestamp)
@@ -149,17 +160,23 @@
 ;; ----
 
 (defn -main []
-  (make-pipeline (-> (create-consumer)
+  (let [consumer (-> (create-consumer)
                      (init-consumer))
-                 (-> (create-producer)
+        producer (-> (create-producer)
                      (init-producer))
-                 #(thrush %
-                          print-and-pass
-                          ; Chain more functions here of the form
-                          ; `[ConsumerRecord] -> [ConsumerRecord]`.
-                          ;
-                          ; Of course, you can write a function which returns
-                          ; something else, then a subsequent function which
-                          ; takes that value.
-                          ;
-                          generate-producer-records)))
+        state (atom {})
+        ; Chain more functions here of the form
+        ; `[ConsumerRecord] -> [ConsumerRecord]`.
+        ;
+        ; Of course, you can write a function which returns something else, then
+        ; a subsequent function which takes that value.
+        ;
+        pipeline #(thrush %
+                          print-and-pass-records
+                          (count-records state)
+                          generate-producer-records)]
+    (loop []
+      (let [in-records (fetch-records-with-consumer consumer poll-size)
+            out-records (pipeline in-records)]
+        (send-records-with-producer producer in-records out-records))
+      (recur))))
