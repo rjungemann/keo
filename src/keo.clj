@@ -1,7 +1,8 @@
 (ns keo
   (:require [clojure.stacktrace]
             [perseverance.core])
-  (:import java.util.Properties
+  (:import example.avro.User
+           java.util.Properties
            org.apache.kafka.clients.consumer.KafkaConsumer
            org.apache.kafka.clients.consumer.ConsumerConfig
            org.apache.kafka.clients.consumer.ConsumerRecords

@@ -1,2 +1,5 @@
 {:deps {org.apache.kafka/kafka_2.12 {:mvn/version "1.0.0"}
-        com.grammarly/perseverance {:mvn/version "0.1.2"}}}
+        org.apache.avro/avro {:mvn/version "1.8.2"}
+        org.apache.avro/avro-tools {:mvn/version "1.8.2"}
+        com.grammarly/perseverance {:mvn/version "0.1.2"}
+        example.avro {:local/root "avro/example/example.jar"}}}

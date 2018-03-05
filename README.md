@@ -21,6 +21,8 @@ Messages come in, get processed by the pipeline, and sent back out.
 brew install clojure kafka kafkacat
 # If kafka crashes with an "ABORT TRAP", this *might* help.
 sudo ulimit -c unlimited
+# Build the Avro schemas.
+./compile-schema.sh
 # Start kafka.
 ./start-kafka.sh
 # Start simple pipeline.
