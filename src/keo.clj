@@ -146,6 +146,9 @@
           records)))))
 
 ; Generate the record(s) going out.
+;
+; NOTE: You may need to play with the partition value.
+;
 (defn generate-producer-records [records]
   (mapcat (fn [record]
             [(ProducerRecord. out-topic
@@ -159,6 +162,7 @@
 ;; Main
 ;; ----
 
+; Add your own functions within the `thrush` call below.
 (defn -main []
   (let [consumer (-> (create-consumer)
                      (init-consumer))
@@ -169,7 +173,7 @@
         ; `[ConsumerRecord] -> [ConsumerRecord]`.
         ;
         ; Of course, you can write a function which returns something else, then
-        ; a subsequent function which takes that value.
+        ; a subsequent function which takes that modified value.
         ;
         pipeline #(thrush %
                           print-and-pass-records
