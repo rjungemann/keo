@@ -80,9 +80,15 @@
         ;
         pipeline #(thrush % print-and-pass-records
                             (count-records state)
-                            generate-producer-records)]
+                            generate-producer-records)
+        ; Use this flag to track if we've consumed our first messages or not.
+        first-records? (volatile! true)]
     (loop []
       (let [in-records (keo.consumer/fetch-records-with-consumer consumer keo.env/poll-size)
-            out-records (pipeline in-records)]
-        (keo.producer/send-records-with-producer producer in-records out-records))
+            ; Don't process first message post-startup, but commit offset later.
+            all-but-initial-in-record (if @first-records? (rest in-records) in-records)
+            out-records (pipeline all-but-initial-in-record)]
+        (keo.producer/send-records-with-producer producer in-records out-records)
+        ; Update the flag if at least one record has come in.
+        (and @first-records? (not (empty? in-records)) (vreset! first-records? false)))
       (recur))))

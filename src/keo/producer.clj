@@ -54,21 +54,6 @@
         (. producer abortTransaction)
         (throw e)))))
 
-(defn send-records-with-producer [producer in-records out-records]
-  (perseverance.core/retry {:strategy retry-strategy
-                            :catch [KafkaException]}
-    (try
-      (. producer beginTransaction)
-      (doseq [record out-records]
-        (. producer send record))
-      (. producer sendOffsetsToTransaction (find-out-offsets in-records) keo.env/kafka-consumer-group-id)
-      (. producer commitTransaction)
-      (catch KafkaException e
-        ; Catch the KafkaException, abort the transaction, and re-raise.
-        (println "Failed to publish records. Retrying...")
-        (. producer abortTransaction)
-        (throw e)))))
-
 ;; ----------------
 ;; Non-Exactly-Once
 ;; ----------------
