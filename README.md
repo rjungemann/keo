@@ -26,9 +26,44 @@ sudo ulimit -c unlimited
 # Start kafka.
 ./start-kafka.sh
 # Start simple pipeline.
-clj -m keo
+clj -m keo.core
 # Listen for output messages.
 kafkacat -b localhost:9092 -t bar
 # Publish a message for the pipeline to pick up.
+clj -m keo.app
+curl http://localhost:9292
+# Or...
 kafkacat -b localhost:9092 -t foo <<< 'Hello, world!'
+```
+
+## Avro
+
+**TODO:** Integrate...
+
+```clojure
+(import org.apache.avro.Schema$Parser)
+(import java.io.File)
+(import org.apache.avro.generic.GenericRecordBuilder)
+
+(defonce schema
+  (Schema$Parser.))
+
+(defonce user-schema
+  (. schema parse (File. "avro/keo/user.avsc")))
+
+(defn user-builder []
+  (GenericRecordBuilder. user-schema))
+
+(defn new-user [& {:keys [name
+                          favorite-number
+                          favorite-color]}]
+  (. (doto (user-builder)
+           (. set "name" name)
+           (. set "favorite_number" (Integer. favorite-number))
+           (. set "favorite_color" favorite-color))
+     build))
+
+(new-user :name "Jane Doe"
+          :favorite-number 7
+          :favorite-color "blue")
 ```

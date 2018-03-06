@@ -1,5 +1,5 @@
 {
-  "namespace": "example.avro",
+  "namespace": "keo.avro",
   "type": "record",
   "name": "User",
   "fields": [
